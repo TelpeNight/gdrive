@@ -118,6 +118,9 @@ func (self *Drive) downloadRecursive(args DownloadArgs) error {
 	} else if isBinary(f) {
 		_, _, err = self.downloadBinary(f, args)
 		return err
+	} else if mime, can := canExportByNight(f); can {
+		_, _, err = self.downloadDocByNight(f, mime, args)
+		return err
 	}
 
 	return nil
@@ -140,6 +143,40 @@ func (self *Drive) downloadBinary(f *drive.File, args DownloadArgs) (int64, int6
 
 	// Path to file
 	fpath := filepath.Join(args.Path, f.Name)
+
+	if !args.Stdout {
+		fmt.Fprintf(args.Out, "Downloading %s -> %s\n", f.Name, fpath)
+	}
+
+	return self.saveFile(saveFileArgs{
+		out:           args.Out,
+		body:          timeoutReaderWrapper(res.Body),
+		contentLength: res.ContentLength,
+		fpath:         fpath,
+		force:         args.Force,
+		skip:          args.Skip,
+		stdout:        args.Stdout,
+		progress:      args.Progress,
+	})
+}
+
+func (self *Drive) downloadDocByNight(f *drive.File, mimeType string, args DownloadArgs) (int64, int64, error) {
+	// Get timeout reader wrapper and context
+	timeoutReaderWrapper, ctx := getTimeoutReaderWrapperContext(args.Timeout)
+
+	res, err := self.service.Files.Export(f.Id, mimeType).Context(ctx).Download()
+	if err != nil {
+		if isTimeoutError(err) {
+			return 0, 0, fmt.Errorf("Failed to download file: timeout, no data was transferred for %v", args.Timeout)
+		}
+		return 0, 0, fmt.Errorf("Failed to download file: %s", err)
+	}
+
+	// Close body on function exit
+	defer res.Body.Close()
+
+	// Path to file
+	fpath := getExportFilename(filepath.Join(args.Path, f.Name), mimeType)
 
 	if !args.Stdout {
 		fmt.Fprintf(args.Out, "Downloading %s -> %s\n", f.Name, fpath)
@@ -257,4 +294,17 @@ func isDir(f *drive.File) bool {
 
 func isBinary(f *drive.File) bool {
 	return f.Md5Checksum != ""
+}
+
+func canExportByNight(f *drive.File) (string, bool) {
+	mime, ok := DefaultExportMimeByNight[f.MimeType]
+	return mime, ok
+}
+
+var DefaultExportMimeByNight = map[string]string{
+	"application/vnd.google-apps.form":         "application/zip",
+	"application/vnd.google-apps.document":     "application/vnd.oasis.opendocument.text",
+	"application/vnd.google-apps.drawing":      "image/svg+xml",
+	"application/vnd.google-apps.spreadsheet":  "application/vnd.oasis.opendocument.spreadsheet",
+	"application/vnd.google-apps.presentation": "application/vnd.oasis.opendocument.presentation",
 }
