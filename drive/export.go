@@ -102,10 +102,26 @@ func getExportMime(userMime, fileMime string) (string, error) {
 }
 
 func getExportFilename(name, mimeType string) string {
-	extensions, err := mime.ExtensionsByType(mimeType)
-	if err != nil || len(extensions) == 0 {
-		return name
-	}
+	return name + ExtensionsByNight(mimeType)
+}
 
-	return name + extensions[0]
+func ExtensionsByNight(mimeType string) string {
+	if mimeType == "application/vnd.oasis.opendocument.text" {
+		return ".odt"
+	} else if mimeType == "application/vnd.oasis.opendocument.spreadsheet" {
+		return ".ods"
+	} else if mimeType == "application/vnd.oasis.opendocument.presentation" {
+		return ".odp"
+	} else if mimeType == "application/vnd.openxmlformats-officedocument.presentationml.presentation" {
+		return ".pptx"
+	} else if mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
+		return ".docx"
+	} else {
+		extensions, err := mime.ExtensionsByType(mimeType)
+		if err != nil || len(extensions) == 0 {
+			return ""
+		} else {
+			return extensions[0]
+		}
+	}
 }

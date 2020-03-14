@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"google.golang.org/api/drive/v3"
@@ -142,7 +143,7 @@ func (self *Drive) downloadBinary(f *drive.File, args DownloadArgs) (int64, int6
 	defer res.Body.Close()
 
 	// Path to file
-	fpath := filepath.Join(args.Path, f.Name)
+	fpath := filepath.Join(args.Path, escapeByNight(f.Name))
 
 	if !args.Stdout {
 		fmt.Fprintf(args.Out, "Downloading %s -> %s\n", f.Name, fpath)
@@ -176,7 +177,7 @@ func (self *Drive) downloadDocByNight(f *drive.File, mimeType string, args Downl
 	defer res.Body.Close()
 
 	// Path to file
-	fpath := getExportFilename(filepath.Join(args.Path, f.Name), mimeType)
+	fpath := getExportFilename(filepath.Join(args.Path, escapeByNight(f.Name)), mimeType)
 
 	if !args.Stdout {
 		fmt.Fprintf(args.Out, "Downloading %s -> %s\n", f.Name, fpath)
@@ -270,7 +271,7 @@ func (self *Drive) downloadDirectory(parent *drive.File, args DownloadArgs) erro
 		return fmt.Errorf("Failed listing files: %s", err)
 	}
 
-	newPath := filepath.Join(args.Path, parent.Name)
+	newPath := filepath.Join(args.Path, escapeByNight(parent.Name))
 
 	for _, f := range files {
 		// Copy args and update changed fields
@@ -301,10 +302,14 @@ func canExportByNight(f *drive.File) (string, bool) {
 	return mime, ok
 }
 
+func escapeByNight(path string) string {
+	return strings.ReplaceAll(path, ":", "")
+}
+
 var DefaultExportMimeByNight = map[string]string{
 	"application/vnd.google-apps.form":         "application/zip",
 	"application/vnd.google-apps.document":     "application/vnd.oasis.opendocument.text",
-	"application/vnd.google-apps.drawing":      "image/svg+xml",
+	"application/vnd.google-apps.drawing":      "image/png",
 	"application/vnd.google-apps.spreadsheet":  "application/vnd.oasis.opendocument.spreadsheet",
 	"application/vnd.google-apps.presentation": "application/vnd.oasis.opendocument.presentation",
 }
